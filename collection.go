@@ -3,6 +3,7 @@ package mongoclient
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -44,6 +45,22 @@ func (r *Repository[T]) Aggregate(ctx context.Context, pipeline any, opts ...opt
 		return nil, fmt.Errorf("failed to decode aggregate results: %w", err)
 	}
 	return results, nil
+}
+
+func (r *Repository[T]) AggregateWithTypedResult(ctx context.Context, result any, pipeline any, opts ...options.Lister[options.AggregateOptions]) error {
+	if reflect.ValueOf(result).Kind() != reflect.Pointer {
+		return fmt.Errorf("result is not a pointer")
+	}
+	cursor, err := r.collection.Aggregate(ctx, pipeline, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to execute aggregate: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	if err = cursor.All(ctx, result); err != nil {
+		return fmt.Errorf("failed to decode aggregate results: %w", err)
+	}
+	return nil
 }
 
 // AggregateTyped performs an aggregation pipeline and returns typed results
