@@ -84,7 +84,7 @@ func (r *Repository[T]) Find(ctx context.Context, filter any, opts ...options.Li
 	return results, nil
 }
 
-func (r *Repository[T]) FindPaginated(ctx context.Context, filter any, page, pageSize int64) ([]T, error) {
+func (r *Repository[T]) FindPaginated(ctx context.Context, filter any, page, pageSize int64, opts ...options.Lister[options.FindOptions]) ([]T, error) {
 	if page < 1 {
 		return nil, fmt.Errorf("invalid page: must be >= 1")
 	}
@@ -92,21 +92,28 @@ func (r *Repository[T]) FindPaginated(ctx context.Context, filter any, page, pag
 		return nil, fmt.Errorf("invalid pageSize: must be >= 1")
 	}
 
-	opts := options.Find()
-	opts.SetSkip((page - 1) * pageSize)
-	opts.SetLimit(pageSize)
-	return r.FindDecoded(ctx, filter, opts)
+	findOpts := options.Find()
+	if len(opts) > 0 {
+		optFromParams, ok := opts[0].(*options.FindOptionsBuilder)
+		if !ok {
+			return nil, fmt.Errorf("invalid options: expected *options.FindOptionsBuilder")
+		}
+		findOpts = optFromParams
+	}
+	findOpts.SetSkip((page - 1) * pageSize)
+	findOpts.SetLimit(pageSize)
+	return r.FindDecoded(ctx, filter, findOpts)
 
 }
 
-func (r *Repository[T]) FindPaginatedWithTotal(ctx context.Context, filter any, page, pageSize int64) ([]T, int64, error) {
+func (r *Repository[T]) FindPaginatedWithTotal(ctx context.Context, filter any, page, pageSize int64, opts ...options.Lister[options.FindOptions]) ([]T, int64, error) {
 	// Validation of page/pageSize happens in FindPaginated
 	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count documents: %w", err)
 	}
 
-	results, err := r.FindPaginated(ctx, filter, page, pageSize)
+	results, err := r.FindPaginated(ctx, filter, page, pageSize, opts...)
 	if err != nil {
 		return nil, 0, err
 	}
